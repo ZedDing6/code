@@ -452,4 +452,152 @@ python -m pip install langchain-text-splitters dashscope
 python -m streamlit run app_file_uploader.py
 ```
 
-学习这套代码时，可以始终按照下面的主线理解：文件先变成文本，文本再变成片段，片段再变成向量，向量和元数据最后一起进入向量数据库；MD5 则负责在进入昂贵的切分和向量化步骤之前，阻止相同内容重复处理。
+学习这套代码时，可以始终按照下面的主线理解：文件先变成文本，文本再变成片段，片段再变成向量，向量和元数据最后一起进入向量数据库；MD5 则负责在进入昂贵的切分和向量化步骤之前，阻止相同内容重复处理。  
+
+## 十、在线流程开发
+
+在线问答流程是在前面“文档上传和入库”基础上的下一步：用户通过网页提出问题，系统从已经保存的向量数据中找到相关内容，再交给 RAG 链组织答案。按照当前的设计图，这部分主要由三个服务共同完成。
+
+### 1. 向量检索服务
+
+`VectorStoreService` 负责加载已经持久化的 Chroma 向量库，并提供一个可以加入执行链的检索器：
+
+```python
+def get_retriever(self):
+    # 返回检索器，用于加入 RAG 链
+    ...
+```
+
+它的核心作用不是重新上传或切分文件，而是把用户的问题转换成查询条件，在 Chroma 中找到语义相关的文本片段。`get_retriever` 返回的对象会作为 RAG 链中的检索环节，为后续回答提供上下文。
+
+### 2. 文件历史消息存储服务
+
+`FileChatMessageHistory` 负责保存用户和系统之间的历史聊天记录，主要围绕三个逻辑：
+
+- `add_messages`：追加新的对话消息。
+- `messages`：读取已经保存的历史消息。
+- `clear`：清空当前会话的历史记录。
+
+历史消息和 Chroma 中的知识片段用途不同：Chroma 保存的是可检索的文档知识，历史消息保存的是当前用户与系统的对话上下文。两者结合后，系统既能参考文档内容，也能理解当前对话的连续语境。
+
+### 3. RAG 服务的成员变量
+
+`RagService` 是在线问答流程的核心服务，图中包含几个关键成员：
+
+- `self.vector_service`：向量检索服务，用于获取相关文档片段。
+- `self.prompt_template`：提示词模板，用于规定如何把问题、历史消息和检索内容组织给模型。
+- `self.chat_model`：聊天模型，负责根据提示词和上下文生成回答。
+- `self.chain`：最终执行链，把检索器、提示词模板和聊天模型连接起来。
+
+`__get_chain()` 的职责是组装并返回这条执行链。在线请求到来后，RAG 服务会把用户问题交给链处理，链内部大致按照下面的方向执行：
+
+```text
+用户问题
+    -> 向量检索器获取相关文档片段
+    -> 组合历史消息、问题和检索结果
+    -> 套用 prompt_template
+    -> 交给 chat_model 生成回答
+    -> 返回给 Streamlit 聊天页面
+```
+
+### 4. 在线调用关系
+
+`app_chat.py` 负责 Streamlit 聊天页面。用户在网页中输入问题后，页面调用 `RagService` 的执行链；RAG 服务通过 `VectorStoreService` 访问 Chroma，通过 `FileChatMessageHistory` 读取和保存会话记录，最后把模型回答返回给网页。
+
+整体关系可以理解为：
+
+```text
+ app_chat.py
+    -> RagService.chain
+        -> VectorStoreService.get_retriever()
+            -> Chroma 向量库
+        -> prompt_template
+        -> chat_model
+        -> FileChatMessageHistory
+```
+
+流程图如下：
+
+![在线流程架构图](online_flow.svg)
+
+这部分的关键思想是职责分离：检索器负责“找资料”，历史消息服务负责“记住对话”，RAG 服务负责“组织上下文并调用模型”，Streamlit 页面负责“接收输入和展示输出”。
+
+## 十一、当前项目完整开发日志
+
+### 1. 文档入库链路
+
+文件上传页面位于 `app_file_uploader.py`。用户可以批量上传 TXT、PDF 和 DOCX 文件，程序先根据文件类型提取出统一的字符串内容，再把文本和文件名传给 `KnowledgeBaseService.upload_file`。
+
+`KnowledgeBaseService` 的处理顺序是：
+
+```text
+文本内容
+    -> get_md5 计算内容指纹
+    -> check_md5 判断是否重复
+    -> RecursiveCharacterTextSplitter 切分长文本
+    -> DashScopeEmbeddings 生成向量
+    -> Chroma.add_texts 保存文本、向量和元数据
+    -> save_md5 保存已入库内容的指纹
+```
+
+MD5 检查放在切分和向量化之前，避免相同内容重复消耗模型调用和数据库写入；只有 Chroma 写入成功后才保存 MD5，避免入库失败却被错误标记为已经处理。
+
+### 2. 在线问答链路
+
+聊天页面位于 `app_chat.py`，核心服务位于 `rag.py`。当前在线问答的调用关系是：
+
+```text
+用户输入问题
+    -> app_chat.py 调用 RagService.chain
+    -> itemgetter("input") 提取问题文本
+    -> VectorStoreService 检索 Chroma 中的相关片段
+    -> format_documents 整理正文和元数据
+    -> ChatPromptTemplate 组合系统提示词、历史消息、问题和参考资料
+    -> ChatTongyi 生成回答
+    -> StrOutputParser 转成字符串
+    -> Streamlit write_stream 流式显示
+```
+
+这里使用 `itemgetter("input")` 是因为链的输入是一个字典，例如 `{"input": prompt}`，而向量检索器需要接收问题字符串。若把整个字典直接传给检索器，检索输入类型就不正确。
+
+### 3. 历史消息链路
+
+`file_history_store.py` 使用 JSON 文件保存 `BaseMessage` 对象：
+
+- `add_messages` 把新消息转换为字典后写入文件。
+- `messages` 读取 JSON 并恢复成 LangChain 消息对象。
+- `clear` 用空列表覆盖当前会话文件。
+
+`rag.py` 使用 `RunnableWithMessageHistory` 将历史服务包在 RAG 链外层，并通过 `session_id` 区分会话。每次调用时，链会读取历史消息；调用完成后，用户问题和模型回答会自动写回对应文件。
+
+`app_chat.py` 使用 `uuid4()` 为当前浏览器会话生成独立的 `session_id`，避免不同会话共同使用同一个历史文件。Streamlit 的 `st.session_state` 负责保存当前页面中的 RAG 对象、消息显示列表和会话 ID；JSON 文件则负责跨页面重新执行保存聊天记录。
+
+
+### 5. 当前项目的完整理解方式
+
+可以把整个项目分成两个相互衔接的阶段：
+
+```text
+离线知识库更新阶段：
+上传文件 -> 提取文本 -> MD5 去重 -> 文本切分 -> 向量化 -> Chroma 入库
+
+在线问答阶段：
+用户提问 -> 向量检索 -> 组合历史和参考资料 -> 提示词 -> 聊天模型 -> 流式回答
+```
+
+前一个阶段决定“知识库里有什么”，后一个阶段决定“如何根据知识库回答问题”。`md5.txt`、Chroma、聊天历史 JSON 和 `st.session_state` 分别承担内容去重、知识持久化、对话持久化和页面会话状态四种不同职责。
+
+运行在线聊天页面时使用：
+
+```powershell
+python -m streamlit run Langchain_RAG_HeiMa/app_chat.py
+```
+
+运行上传页面时使用：
+
+```powershell
+python -m streamlit run Langchain_RAG_HeiMa/app_file_uploader.py
+```
+
+在线调用还需要正确配置 DashScope 的访问凭证，并确保配置中的 Embedding 模型和聊天模型是当前账号可用的模型。Python 编译检查只能验证语法和模块结构，不能替代真实模型调用、网络访问和向量库写入测试。
+

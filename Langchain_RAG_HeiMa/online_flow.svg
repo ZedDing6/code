@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="820" viewBox="0 0 1400 820">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,3 L0,6 Z" fill="#333"/>
+    </marker>
+    <style>
+      .title { font: 700 26px sans-serif; fill: #222; }
+      .label { font: 18px sans-serif; fill: #222; }
+      .small { font: 16px sans-serif; fill: #222; }
+      .box { fill: #fff; stroke: #333; stroke-width: 2; rx: 12; }
+      .group { fill: none; stroke: #555; stroke-width: 2; stroke-dasharray: 8 6; }
+      .arrow { fill: none; stroke: #333; stroke-width: 2.5; marker-end: url(#arrow); }
+    </style>
+  </defs>
+  <rect width="1400" height="820" fill="#fafafa"/>
+  <text x="28" y="42" class="title">在线流程</text>
+
+  <rect x="55" y="145" width="350" height="430" class="group"/>
+  <text x="105" y="620" class="title">VectorStoreService</text>
+  <text x="150" y="650" class="label">vector_stores.py</text>
+  <rect x="85" y="205" width="290" height="130" class="box"/>
+  <text x="125" y="255" class="label">def get_retriever</text>
+  <text x="125" y="290" class="small">返回检索器用于加入链</text>
+
+  <rect x="470" y="145" width="560" height="430" class="group"/>
+  <text x="665" y="620" class="title">RagService</text>
+  <text x="715" y="650" class="label">rag.py</text>
+  <rect x="500" y="190" width="220" height="75" class="box"/>
+  <text x="545" y="235" class="label">self.vector_service</text>
+  <rect x="500" y="290" width="220" height="75" class="box"/>
+  <text x="545" y="335" class="label">self.prompt_template</text>
+  <rect x="500" y="430" width="450" height="105" class="box"/>
+  <text x="650" y="475" class="label">def __get_chain()</text>
+  <text x="670" y="510" class="small">获得执行链</text>
+  <rect x="755" y="250" width="205" height="95" fill="#ffe6bd" stroke="#b88918" stroke-width="2" rx="12"/>
+  <text x="825" y="305" class="label">self.chain</text>
+  <rect x="755" y="385" width="205" height="75" class="box"/>
+  <text x="800" y="430" class="label">self.chat_model</text>
+
+  <rect x="1090" y="145" width="260" height="430" class="group"/>
+  <rect x="1120" y="190" width="200" height="75" class="box"/>
+  <text x="1150" y="235" class="label">def add_messages</text>
+  <rect x="1120" y="290" width="200" height="75" class="box"/>
+  <text x="1180" y="335" class="label">messages</text>
+  <rect x="1120" y="390" width="200" height="75" class="box"/>
+  <text x="1180" y="435" class="label">def clear</text>
+  <text x="1115" y="620" class="title">FileChatMessageHistory</text>
+  <text x="1160" y="650" class="label">file_history_store.py</text>
+
+  <ellipse cx="520" cy="75" rx="105" ry="38" fill="#fff" stroke="#333" stroke-width="2"/>
+  <text x="465" y="82" class="label">Chroma 向量库</text>
+  <rect x="700" y="20" width="260" height="90" class="box"/>
+  <text x="790" y="55" class="label">app_qa.py</text>
+  <text x="745" y="88" class="small">Streamlit 聊天 UI</text>
+  <rect x="1040" y="35" width="130" height="60" class="box"/>
+  <text x="1072" y="72" class="label">WEB 页面</text>
+  <text x="1230" y="75" class="label">用户</text>
+
+  <path d="M405 270 L520 115" class="arrow"/>
+  <path d="M625 75 L700 65" class="arrow"/>
+  <path d="M960 65 L1040 65" class="arrow"/>
+  <path d="M1170 65 L1215 65" class="arrow"/>
+  <path d="M625 270 L755 295" class="arrow"/>
+  <path d="M720 227 L755 275" class="arrow"/>
+  <path d="M720 327 L755 315" class="arrow"/>
+  <path d="M857 385 L857 345" class="arrow"/>
+  <path d="M725 480 L755 325" class="arrow"/>
+  <path d="M1090 250 L960 295" class="arrow"/>
+  <path d="M1090 330 L960 315" class="arrow"/>
+  <path d="M830 110 L830 250" class="arrow"/>
+  <text x="850" y="180" class="small">invoke</text>
+</svg>
